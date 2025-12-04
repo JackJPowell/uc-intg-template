@@ -105,9 +105,6 @@ class DeviceMediaPlayer(MediaPlayer):
         _LOG.info("Received command: %s %s", cmd_id, params if params else "")
 
         try:
-            # Ensure device connection
-            await self._device.connect()
-
             # TODO: Implement command handling for your device
             match cmd_id:
                 case media_player.Commands.ON:

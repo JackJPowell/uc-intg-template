@@ -17,6 +17,6 @@ _Changes in the next release_
 - Media player entity template with common features.
 - Device communication template with connection management.
 - Setup flow with manual device entry.
-- SDDP device discovery template.
+- mDNS device discovery template.
 - Docker and Docker Compose configurations.
 - Development environment with core-simulator.
