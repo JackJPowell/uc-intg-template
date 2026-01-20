@@ -17,8 +17,9 @@ from ucapi import MediaPlayer, media_player, EntityTypes
 from ucapi.media_player import DeviceClasses, Attributes
 
 import device
-from const import DeviceConfig, SimpleCommands
+from const import DeviceConfig
 from ucapi_framework import create_entity_id
+from ucapi_framework.entity import Entity as FrameworkEntity
 
 _LOG = logging.getLogger(__name__)
 
@@ -45,11 +46,12 @@ FEATURES = [
 ]
 
 
-class DeviceMediaPlayer(MediaPlayer):
+class DeviceMediaPlayer(MediaPlayer, FrameworkEntity):
     """
     Media Player entity for your device.
 
     This class handles all media player commands and maintains the entity state.
+    Inherits from FrameworkEntity to get automatic state updates via get_device_attributes.
     """
 
     def __init__(self, config_device: DeviceConfig, device_instance: device.Device):
@@ -89,7 +91,11 @@ class DeviceMediaPlayer(MediaPlayer):
         )
 
     async def handle_command(
-        self, entity: MediaPlayer, cmd_id: str, params: dict[str, Any] | None
+        self,
+        entity: MediaPlayer,
+        cmd_id: str,
+        params: dict[str, Any] | None,
+        _: Any | None = None,
     ) -> ucapi.StatusCodes:
         """
         Handle media player commands from the remote.
@@ -134,6 +140,7 @@ class DeviceMediaPlayer(MediaPlayer):
                     _LOG.warning("Unhandled command: %s", cmd_id)
                     return ucapi.StatusCodes.NOT_IMPLEMENTED
 
+            self.update(self._device.attributes)
             return ucapi.StatusCodes.OK
 
         except Exception as ex:

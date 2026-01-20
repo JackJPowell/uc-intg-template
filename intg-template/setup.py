@@ -18,66 +18,6 @@ from ucapi_framework import BaseSetupFlow
 
 _LOG = logging.getLogger(__name__)
 
-# TODO: Customize this form for your device's setup requirements
-# This form is displayed when the user chooses manual device entry
-_MANUAL_INPUT_SCHEMA = RequestUserInput(
-    {"en": "Device Setup"},  # TODO: Update title
-    [
-        {
-            "id": "info",
-            "label": {
-                "en": "Setup your Device",  # TODO: Update label
-            },
-            "field": {
-                "label": {
-                    "value": {
-                        "en": (
-                            "Please enter the connection details for your device."
-                            # TODO: Update help text
-                        ),
-                    }
-                }
-            },
-        },
-        {
-            "field": {"text": {"value": ""}},
-            "id": "name",
-            "label": {
-                "en": "Device Name",
-            },
-        },
-        {
-            "field": {"text": {"value": ""}},
-            "id": "address",
-            "label": {
-                "en": "IP Address or Hostname",
-            },
-        },
-        # TODO: Add additional fields your device needs
-        # {
-        #     "field": {"number": {"value": 8080, "min": 1, "max": 65535}},
-        #     "id": "port",
-        #     "label": {
-        #         "en": "Port",
-        #     },
-        # },
-        # {
-        #     "field": {"text": {"value": ""}},
-        #     "id": "username",
-        #     "label": {
-        #         "en": "Username",
-        #     },
-        # },
-        # {
-        #     "field": {"password": {"value": ""}},
-        #     "id": "password",
-        #     "label": {
-        #         "en": "Password",
-        #     },
-        # },
-    ],
-)
-
 
 class DeviceSetupFlow(BaseSetupFlow[DeviceConfig]):
     """
@@ -95,7 +35,66 @@ class DeviceSetupFlow(BaseSetupFlow[DeviceConfig]):
 
         :return: RequestUserInput with form fields for manual configuration
         """
-        return _MANUAL_INPUT_SCHEMA
+
+        # TODO: Customize this form for your device's setup requirements
+        # This form is displayed when the user chooses manual device entry
+        return RequestUserInput(
+            {"en": "Device Setup"},  # TODO: Update title
+            [
+                {
+                    "id": "info",
+                    "label": {
+                        "en": "Setup your Device",  # TODO: Update label
+                    },
+                    "field": {
+                        "label": {
+                            "value": {
+                                "en": (
+                                    "Please enter the connection details for your device."
+                                    # TODO: Update help text
+                                ),
+                            }
+                        }
+                    },
+                },
+                {
+                    "field": {"text": {"value": ""}},
+                    "id": "name",
+                    "label": {
+                        "en": "Device Name",
+                    },
+                },
+                {
+                    "field": {"text": {"value": ""}},
+                    "id": "address",
+                    "label": {
+                        "en": "IP Address or Hostname",
+                    },
+                },
+                # TODO: Add additional fields your device needs
+                # {
+                #     "field": {"number": {"value": 8080, "min": 1, "max": 65535}},
+                #     "id": "port",
+                #     "label": {
+                #         "en": "Port",
+                #     },
+                # },
+                # {
+                #     "field": {"text": {"value": ""}},
+                #     "id": "username",
+                #     "label": {
+                #         "en": "Username",
+                #     },
+                # },
+                # {
+                #     "field": {"password": {"value": ""}},
+                #     "id": "password",
+                #     "label": {
+                #         "en": "Password",
+                #     },
+                # },
+            ],
+        )
 
     async def query_device(
         self, input_values: dict[str, Any]
@@ -122,7 +121,7 @@ class DeviceSetupFlow(BaseSetupFlow[DeviceConfig]):
         # Validate required fields
         if not address:
             _LOG.warning("Address is required, re-displaying form")
-            return _MANUAL_INPUT_SCHEMA
+            return self.get_manual_entry_form()
 
         # Use a default name if not provided
         if not name:

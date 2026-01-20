@@ -11,29 +11,14 @@ TODO: Implement the actual device communication logic for your specific device.
 
 import logging
 from asyncio import AbstractEventLoop
-from enum import StrEnum
 from typing import Any
 
 from const import DeviceConfig
-from ucapi import EntityTypes
-from ucapi.media_player import Attributes as MediaAttr
-from ucapi_framework import BaseConfigManager, StatelessHTTPDevice, create_entity_id
-from ucapi_framework.device import DeviceEvents
+from ucapi import media_player
+from ucapi_framework import BaseConfigManager, StatelessHTTPDevice
+from ucapi_framework.helpers import MediaPlayerAttributes
 
 _LOG = logging.getLogger(__name__)
-
-
-class PowerState(StrEnum):
-    """
-    Power state enumeration for the device.
-
-    Adjust these states based on what your device supports.
-    """
-
-    OFF = "OFF"
-    ON = "ON"
-    STANDBY = "STANDBY"
-    UNKNOWN = "UNKNOWN"
 
 
 class Device(StatelessHTTPDevice):
@@ -74,7 +59,17 @@ class Device(StatelessHTTPDevice):
         # )
 
         # Initialize device state tracking
-        self._power_state: PowerState = PowerState.UNKNOWN
+        self._power_state: media_player.States | None = None
+
+        # Initialize MediaPlayerAttributes dataclass for state management
+        self.attributes = MediaPlayerAttributes(
+            STATE=None,
+            # TODO: Add other attributes your device supports
+            # VOLUME=None,
+            # MUTED=None,
+            # SOURCE=None,
+            # SOURCE_LIST=None,
+        )
 
     # =========================================================================
     # Properties
@@ -96,7 +91,7 @@ class Device(StatelessHTTPDevice):
         return self._device_config.address
 
     @property
-    def state(self) -> PowerState:
+    def state(self) -> media_player.States | None:
         """Return the current power state."""
         return self._power_state
 
@@ -108,27 +103,6 @@ class Device(StatelessHTTPDevice):
     # =========================================================================
     # Connection Management
     # =========================================================================
-
-    async def connect(self) -> None:
-        """
-        Establish connection to the device.
-
-        TODO: Implement your device's connection logic here.
-        This might involve opening a TCP connection, authenticating, etc.
-        """
-        _LOG.debug("[%s] Connecting to device at %s", self.log_id, self.address)
-        # TODO: Implement connection logic
-        # await self._client.connect()
-
-    async def disconnect(self) -> None:
-        """
-        Disconnect from the device.
-
-        TODO: Implement your device's disconnection logic here.
-        """
-        _LOG.debug("[%s] Disconnecting from device", self.log_id)
-        # TODO: Implement disconnection logic
-        # await self._client.disconnect()
 
     async def verify_connection(self) -> None:
         """
@@ -152,16 +126,12 @@ class Device(StatelessHTTPDevice):
             # 4. Emit state update event
 
             # Example implementation:
-            # await self.connect()
             # state = await self._client.get_power_state()
-            # self._power_state = PowerState(state)
+            # self._power_state = media_player.States(state)
 
             _LOG.debug(
                 "[%s] Connection verified, state: %s", self.log_id, self._power_state
             )
-
-            # Emit state update to the Remote
-            self._emit_state_update()
 
         except Exception as err:
             _LOG.error("[%s] Connection verification failed: %s", self.log_id, err)
@@ -181,8 +151,8 @@ class Device(StatelessHTTPDevice):
         # TODO: Send power on command
         # await self._client.power_on()
 
-        self._power_state = PowerState.ON
-        self._emit_state_update()
+        self._power_state = media_player.States.ON
+        self.attributes.STATE = media_player.States.ON
 
     async def power_off(self) -> None:
         """
@@ -194,8 +164,8 @@ class Device(StatelessHTTPDevice):
         # TODO: Send power off command
         # await self._client.power_off()
 
-        self._power_state = PowerState.OFF
-        self._emit_state_update()
+        self._power_state = media_player.States.OFF
+        self.attributes.STATE = media_player.States.OFF
 
     async def power_toggle(self) -> None:
         """
@@ -205,7 +175,7 @@ class Device(StatelessHTTPDevice):
         """
         _LOG.debug("[%s] Toggling power", self.log_id)
 
-        if self._power_state == PowerState.ON:
+        if self._power_state == media_player.States.ON:
             await self.power_off()
         else:
             await self.power_on()
@@ -214,52 +184,44 @@ class Device(StatelessHTTPDevice):
     # Command Sending
     # =========================================================================
 
-    async def send_command(self, command: str, *args: Any, **kwargs: Any) -> None:
+    async def send_command(self, command: str, **kwargs: Any) -> None:
         """
         Send a command to the device.
 
         This is a generic command method that can be used for various operations.
 
         :param command: Command to send
-        :param args: Positional arguments
-        :param kwargs: Keyword arguments
+        :param kwargs: Keyword arguments for the command
         """
         _LOG.debug("[%s] Sending command: %s", self.log_id, command)
-        update: dict[MediaAttr, Any] = {}
+        _LOG.debug("[%s] Sending command: %s", self.log_id, command)
 
-        # TODO: Implement command routing
+        # TODO: Implement command routing and update attributes
         # Example:
         # match command:
         #     case "volume_up":
         #         await self._client.volume_up()
-        #         update = {MediaAttr.VOLUME: self._volume}
+        #         self._volume += 5
+        #         self.attributes.VOLUME = self._volume
         #     case "volume_down":
         #         await self._client.volume_down()
-        #         update = {MediaAttr.VOLUME: self._volume}
+        #         self._volume -= 5
+        #         self.attributes.VOLUME = self._volume
         #     case _:
         #         _LOG.warning("Unknown command: %s", command)
-
-        self.events.emit(
-            DeviceEvents.UPDATE,
-            create_entity_id(EntityTypes.MEDIA_PLAYER, self.identifier),
-            update,
-        )
 
     # =========================================================================
     # Helper Methods
     # =========================================================================
 
-    def _emit_state_update(self) -> None:
-        """Emit current state to the Remote."""
-        attributes = {
-            MediaAttr.STATE: self._power_state,
-            # TODO: Add additional attributes your device tracks
-            # MediaAttr.VOLUME: self._volume,
-            # MediaAttr.MUTED: self._muted,
-            # MediaAttr.SOURCE: self._source,
-        }
-        self.events.emit(
-            DeviceEvents.UPDATE,
-            create_entity_id(EntityTypes.MEDIA_PLAYER, self.identifier),
-            attributes,
-        )
+    def get_device_attributes(self, entity_id: str) -> MediaPlayerAttributes:
+        """
+        Return current device attributes for the given entity.
+
+        Called by the framework when refreshing entity state.
+        Returns the MediaPlayerAttributes dataclass with current device state.
+
+        :param entity_id: Entity identifier
+        :return: MediaPlayerAttributes dataclass with current state
+        """
+        return self.attributes
