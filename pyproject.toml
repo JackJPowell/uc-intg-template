@@ -19,7 +19,7 @@ urls.Repository = "https://github.com/yourusername/uc-intg-yourdevice"
 dependencies = [
     # Core dependencies
     "ucapi==0.5.1",
-    "ucapi-framework==1.6.6",
+    "ucapi-framework==1.7.0",
     "pyee>=9.0",
     
     # Discovery protocols
