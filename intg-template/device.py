@@ -15,7 +15,11 @@ from typing import Any
 
 from const import DeviceConfig
 from ucapi import media_player
-from ucapi_framework import BaseConfigManager, StatelessHTTPDevice
+from ucapi_framework import (
+    BaseConfigManager,
+    StatelessHTTPDevice,
+    BaseIntegrationDriver,
+)
 from ucapi_framework.helpers import MediaPlayerAttributes
 
 _LOG = logging.getLogger(__name__)
@@ -39,6 +43,7 @@ class Device(StatelessHTTPDevice):
         device_config: DeviceConfig,
         loop: AbstractEventLoop | None,
         config_manager: BaseConfigManager | None = None,
+        driver: BaseIntegrationDriver | None = None,
     ) -> None:
         """
         Initialize the device.
@@ -48,7 +53,10 @@ class Device(StatelessHTTPDevice):
         :param config_manager: Configuration manager instance
         """
         super().__init__(
-            device_config=device_config, loop=loop, config_manager=config_manager
+            device_config=device_config,
+            loop=loop,
+            config_manager=config_manager,
+            driver=driver,
         )
 
         # TODO: Initialize your device client/connection here
