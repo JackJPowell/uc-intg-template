@@ -18,7 +18,6 @@ from ucapi import media_player
 from ucapi_framework import (
     BaseConfigManager,
     StatelessHTTPDevice,
-    BaseIntegrationDriver,
 )
 from ucapi_framework.helpers import MediaPlayerAttributes
 
@@ -43,7 +42,7 @@ class Device(StatelessHTTPDevice):
         device_config: DeviceConfig,
         loop: AbstractEventLoop | None,
         config_manager: BaseConfigManager | None = None,
-        driver: BaseIntegrationDriver | None = None,
+        driver=None,
     ) -> None:
         """
         Initialize the device.
@@ -66,18 +65,18 @@ class Device(StatelessHTTPDevice):
         #     port=device_config.port,
         # )
 
-        # Initialize device state tracking
-        self._power_state: media_player.States | None = None
-
-        # Initialize MediaPlayerAttributes dataclass for state management
-        self.attributes = MediaPlayerAttributes(
-            STATE=None,
-            # TODO: Add other attributes your device supports
-            # VOLUME=None,
-            # MUTED=None,
-            # SOURCE=None,
-            # SOURCE_LIST=None,
-        )
+        # State dicts keyed by device_id (identifier), not entity_id.
+        # Seed with defaults so accessors always return a valid object.
+        self._media_player_attributes: dict[str, MediaPlayerAttributes] = {
+            device_config.identifier: MediaPlayerAttributes(
+                STATE=None,
+                # TODO: Add other attributes your device supports
+                # VOLUME=None,
+                # MUTED=None,
+                # SOURCE=None,
+                # SOURCE_LIST=None,
+            )
+        }
 
     # =========================================================================
     # Properties
@@ -101,12 +100,24 @@ class Device(StatelessHTTPDevice):
     @property
     def state(self) -> media_player.States | None:
         """Return the current power state."""
-        return self._power_state
+        attrs = self._media_player_attributes.get(self.identifier)
+        return attrs.STATE if attrs else None
 
     @property
     def log_id(self) -> str:
         """Return a log identifier for debugging."""
         return self.name if self.name else self.identifier
+
+    def get_media_player_attributes(self, device_id: str) -> MediaPlayerAttributes | None:
+        """
+        Return media player attributes for the given device_id.
+
+        Called by the entity's sync_state() after push_update() fires.
+
+        :param device_id: Device identifier (DeviceConfig.identifier)
+        :return: Current MediaPlayerAttributes, or None if unknown
+        """
+        return self._media_player_attributes.get(device_id)
 
     # =========================================================================
     # Connection Management
@@ -138,7 +149,7 @@ class Device(StatelessHTTPDevice):
             # self._power_state = media_player.States(state)
 
             _LOG.debug(
-                "[%s] Connection verified, state: %s", self.log_id, self._power_state
+                "[%s] Connection verified, state: %s", self.log_id, self.state
             )
 
         except Exception as err:
@@ -159,8 +170,9 @@ class Device(StatelessHTTPDevice):
         # TODO: Send power on command
         # await self._client.power_on()
 
-        self._power_state = media_player.States.ON
-        self.attributes.STATE = media_player.States.ON
+        if self.identifier in self._media_player_attributes:
+            self._media_player_attributes[self.identifier].STATE = media_player.States.ON
+        self.push_update()
 
     async def power_off(self) -> None:
         """
@@ -172,8 +184,9 @@ class Device(StatelessHTTPDevice):
         # TODO: Send power off command
         # await self._client.power_off()
 
-        self._power_state = media_player.States.OFF
-        self.attributes.STATE = media_player.States.OFF
+        if self.identifier in self._media_player_attributes:
+            self._media_player_attributes[self.identifier].STATE = media_player.States.OFF
+        self.push_update()
 
     async def power_toggle(self) -> None:
         """
@@ -183,7 +196,7 @@ class Device(StatelessHTTPDevice):
         """
         _LOG.debug("[%s] Toggling power", self.log_id)
 
-        if self._power_state == media_player.States.ON:
+        if self.state == media_player.States.ON:
             await self.power_off()
         else:
             await self.power_on()
@@ -192,7 +205,7 @@ class Device(StatelessHTTPDevice):
     # Command Sending
     # =========================================================================
 
-    async def send_command(self, command: str, **kwargs: Any) -> None:
+    async def send_command(self, command: str, **_kwargs: Any) -> None:
         """
         Send a command to the device.
 
@@ -202,34 +215,18 @@ class Device(StatelessHTTPDevice):
         :param kwargs: Keyword arguments for the command
         """
         _LOG.debug("[%s] Sending command: %s", self.log_id, command)
-        _LOG.debug("[%s] Sending command: %s", self.log_id, command)
 
-        # TODO: Implement command routing and update attributes
+        # TODO: Implement command routing, update _media_player_attributes, then call push_update()
         # Example:
         # match command:
         #     case "volume_up":
         #         await self._client.volume_up()
-        #         self._volume += 5
-        #         self.attributes.VOLUME = self._volume
+        #         self._media_player_attributes[self.identifier].VOLUME += 5
+        #         self.push_update()
         #     case "volume_down":
         #         await self._client.volume_down()
-        #         self._volume -= 5
-        #         self.attributes.VOLUME = self._volume
+        #         self._media_player_attributes[self.identifier].VOLUME -= 5
+        #         self.push_update()
         #     case _:
         #         _LOG.warning("Unknown command: %s", command)
 
-    # =========================================================================
-    # Helper Methods
-    # =========================================================================
-
-    def get_device_attributes(self, entity_id: str) -> MediaPlayerAttributes:
-        """
-        Return current device attributes for the given entity.
-
-        Called by the framework when refreshing entity state.
-        Returns the MediaPlayerAttributes dataclass with current device state.
-
-        :param entity_id: Entity identifier
-        :return: MediaPlayerAttributes dataclass with current state
-        """
-        return self.attributes

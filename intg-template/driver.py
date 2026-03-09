@@ -37,7 +37,8 @@ async def main():
     # TODO: Add additional entity classes if your device supports them
     # Available entity types: MediaPlayer, Remote, Light, Switch, Climate, etc.
     driver = BaseIntegrationDriver(
-        device_class=Device, entity_classes=[DeviceMediaPlayer]
+        device_class=Device,
+        entity_classes=[DeviceMediaPlayer],  # type: ignore[arg-type]
     )
 
     # Configure the device config manager

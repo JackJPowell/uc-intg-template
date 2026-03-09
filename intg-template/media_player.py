@@ -13,13 +13,12 @@ import logging
 from typing import Any
 
 import ucapi
-from ucapi import MediaPlayer, media_player, EntityTypes
+from ucapi import media_player, EntityTypes
 from ucapi.media_player import DeviceClasses, Attributes
 
 import device
 from const import DeviceConfig
-from ucapi_framework import create_entity_id
-from ucapi_framework.entity import Entity as FrameworkEntity
+from ucapi_framework import create_entity_id, MediaPlayerEntity
 
 _LOG = logging.getLogger(__name__)
 
@@ -46,7 +45,7 @@ FEATURES = [
 ]
 
 
-class DeviceMediaPlayer(MediaPlayer, FrameworkEntity):
+class DeviceMediaPlayer(MediaPlayerEntity):
     """
     Media Player entity for your device.
 
@@ -62,6 +61,7 @@ class DeviceMediaPlayer(MediaPlayer, FrameworkEntity):
         :param device_instance: The device instance to control
         """
         self._device = device_instance
+        self._device_id = config_device.identifier
         entity_id = create_entity_id(EntityTypes.MEDIA_PLAYER, config_device.identifier)
 
         _LOG.debug("Initializing media player entity: %s", entity_id)
@@ -90,9 +90,27 @@ class DeviceMediaPlayer(MediaPlayer, FrameworkEntity):
             cmd_handler=self.handle_command,
         )
 
+        if device_instance is not None:
+            self.subscribe_to_device(device_instance)
+
+    async def sync_state(self) -> None:
+        """
+        Sync media player state from device to the Remote.
+
+        Called automatically on device reconnect and after every push_update().
+        Reads the current attributes from the device and pushes them to the Remote.
+        """
+        if self._device is None:
+            self.set_unavailable()
+            return
+
+        attrs = self._device.get_media_player_attributes(self._device_id)
+        if attrs is not None:
+            self.update(attrs)
+
     async def handle_command(
         self,
-        entity: MediaPlayer,
+        _entity: MediaPlayerEntity,
         cmd_id: str,
         params: dict[str, Any] | None,
         _: Any | None = None,
@@ -103,11 +121,15 @@ class DeviceMediaPlayer(MediaPlayer, FrameworkEntity):
         This method is called by the integration API when a command is sent
         to this media player entity.
 
-        :param entity: The media player entity receiving the command
+        :param _entity: The media player entity receiving the command (unused)
         :param cmd_id: The command identifier
         :param params: Optional command parameters
         :return: Status code indicating success or failure
         """
+        if self._device is None:
+            _LOG.warning("Command %s received but device is not available", cmd_id)
+            return ucapi.StatusCodes.SERVICE_UNAVAILABLE
+
         _LOG.info("Received command: %s %s", cmd_id, params if params else "")
 
         try:
@@ -140,9 +162,8 @@ class DeviceMediaPlayer(MediaPlayer, FrameworkEntity):
                     _LOG.warning("Unhandled command: %s", cmd_id)
                     return ucapi.StatusCodes.NOT_IMPLEMENTED
 
-            self.update(self._device.attributes)
             return ucapi.StatusCodes.OK
 
-        except Exception as ex:
+        except (OSError, RuntimeError) as ex:
             _LOG.error("Error executing command %s: %s", cmd_id, ex)
             return ucapi.StatusCodes.BAD_REQUEST

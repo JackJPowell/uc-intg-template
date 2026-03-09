@@ -1,5 +1,5 @@
-# Triggered by version tag creation to build a distribution binary, Docker image, and create a release draft
-name: "Build & Draft Release"
+# Triggered by version tag creation to build a distribution binary, Docker image, and create a release
+name: "Build & Release"
 
 "on":
   push:
@@ -19,6 +19,7 @@ jobs:
     outputs:
       version: ${{ steps.get-version-and-id.outputs.VERSION }}
       driver_id: ${{ steps.get-version-and-id.outputs.DRIVER_ID }}
+      release_notes: ${{ steps.changelog.outputs.NOTES }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -37,6 +38,24 @@ jobs:
           # Save to Github output to later use it in Create Release job
           echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
           echo "DRIVER_ID=$(jq .driver_id -r driver.json)" >> $GITHUB_OUTPUT
+
+      - name: Extract changelog notes
+        id: changelog
+        run: |
+          # Extract the section for this version from CHANGELOG.md.
+          # Matches from the heading "## v<VERSION>" down to (but not including)
+          # the next "## " heading or end-of-file.
+          VERSION=${GITHUB_REF#refs/tags/v}
+          NOTES=$(awk "/^## v${VERSION}/{ found=1; next } found && /^## /{ exit } found{ print }" CHANGELOG.md \
+            | sed '/^[[:space:]]*$/d' | sed '/^---$/d')
+          if [ -z "$NOTES" ]; then
+            NOTES="See [CHANGELOG.md](CHANGELOG.md) for details."
+          fi
+          # Use multiline delimiter to preserve newlines in GITHUB_OUTPUT
+          EOF=$(openssl rand -hex 8)
+          echo "NOTES<<$EOF" >> $GITHUB_OUTPUT
+          echo "$NOTES" >> $GITHUB_OUTPUT
+          echo "$EOF" >> $GITHUB_OUTPUT
 
       - name: Build
         run: |
@@ -141,11 +160,13 @@ jobs:
         run: |
           for filename in *.tar.gz; do echo "sha256  `sha256sum $filename`" >> ${{needs.build.outputs.driver_id}}.hash; done;
 
-      - name: Create release draft
+      - name: Create release
         uses: ncipollo/release-action@v1
         with:
           artifacts: "*.tar.gz,${{needs.build.outputs.driver_id}}.hash"
-          draft: true
-          generateReleaseNotes: true
+          draft: false
+          prerelease: false
+          generateReleaseNotes: false
+          body: ${{ needs.build.outputs.release_notes }}
           artifactErrorsFailBuild: true
           tag: v${{needs.build.outputs.version}}
